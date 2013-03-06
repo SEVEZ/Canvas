@@ -1,0 +1,8 @@
+global proc createUI() {
+	menu -l "Create Curves" -p MayaWindow -to 1 CreateCurvesMenu;
+	menuItem -l "Create Curves" -command "createCurves";
+};
+
+global proc deleteUI() {
+	deleteUI CreateCurvesMenu;
+};
