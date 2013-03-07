@@ -1,0 +1,30 @@
+global proc createUI() {
+	menu -l "Canvas" -p MayaWindow -to 1 CanvasMenu;
+	menuItem -l "Create Curves" -command "createCurves";
+	menuItem -l "Duplicate Along Curve" -command "duplicateAlongCurve";
+	menuItem -l "Render" -command "renderCanvas";
+};
+
+global proc deleteUI() {
+	deleteUI CanvasMenu;
+};
+
+global proc duplicateAlongCurve() {
+	string $selection[] = `ls -sl`;
+	if (size($selection) != 2) // we also need to check if the second object is the curve
+		print("Please select the object, then the curve");
+	else {
+		string $obj = $selection[0];
+		string $curve = $selection[1];
+		createNode curveNode;
+		connectAttr $curve curveNode1.inCurve;
+		instancer;
+		connectAttr $obj.matrix instancer1.inputHierarchy[0];
+		connectAttr curveNode1.outPoints instancer1.inputPoints;
+	}
+};
+
+global proc renderCanvas() {
+	// before rendering, we need to rotate and scale the textures according to the orientation of the camera
+	Mayatomr -pv; // renders the current frame with mental ray, you need to have render view open
+};

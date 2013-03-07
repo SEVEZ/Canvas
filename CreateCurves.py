@@ -7,6 +7,17 @@ import maya.OpenMayaMPx as OpenMayaMPx
 import maya.cmds as cmds
 import maya.mel as mel
 
+def MAKE_INPUT(attr):
+	attr.setKeyable(True)
+	attr.setStorable(True)
+	attr.setReadable(True)
+	attr.setWritable(True)
+def MAKE_OUTPUT(attr):
+	attr.setKeyable(False)
+	attr.setStorable(False)
+	attr.setReadable(True)
+	attr.setWritable(False)
+
 pluginCmdName = "createCurves"
 
 class createCurvesCmd(OpenMayaMPx.MPxCommand):
@@ -110,11 +121,84 @@ class createCurvesCmd(OpenMayaMPx.MPxCommand):
 def cmdCreator():
 	return OpenMayaMPx.asMPxPtr(createCurvesCmd())
 
+curveNodeId = OpenMaya.MTypeId(0x8704)
+
+class curveNode(OpenMayaMPx.MPxNode):
+	density = OpenMaya.MObject()
+	inCurve = OpenMaya.MObject()
+	outPoints = OpenMaya.MObject()
+
+	# constructor
+	def __init__(self):
+		OpenMayaMPx.MPxNode.__init__(self)
+
+	# compute
+	def compute(self,plug,data):
+		densData = data.inputValue(curveNode.density)
+		dens = densData.asFloat()
+		curveData = data.inputValue(curveNode.inCurve)
+		curveObject = OpenMaya.MObject(curveData.asNurbsCurve())
+		curve = OpenMaya.MFnNurbsCurve(curveObject)
+
+		pointsData = data.outputValue(curveNode.outPoints)
+		pointsAAD = OpenMaya.MFnArrayAttrsData()
+		pointsObject = pointsAAD.create()
+
+		positionArray = pointsAAD.vectorArray("position")
+		idArray = pointsAAD.doubleArray("id")
+
+		max = curve.findParamFromLength(curve.length())
+		for i in frange(0, max, dens):
+			p = OpenMaya.MPoint()
+			curve.getPointAtParam(i, p, OpenMaya.MSpace.kWorld)
+			point = OpenMaya.MVector(p)
+			positionArray.append(point)
+			idArray.append(i)
+
+		pointsData.setMObject(pointsObject)
+
+		data.setClean(plug)
+
+	def fRange(start, end, step):
+		while start <= end:
+			yield start
+			start += step
+
+# initializer
+def curveNodeInitializer():
+	tAttr = OpenMaya.MFnTypedAttribute()
+	nAttr = OpenMaya.MFnNumericAttribute()
+
+	curveNode.density = nAttr.create("density", "d", OpenMaya.MFnNumericData.kFloat, 0.1)
+	MAKE_INPUT(nAttr)
+
+	curveNode.inCurve = tAttr.create("inCurve", "ic", OpenMaya.MFnNurbsCurveData.kNurbsCurve)
+	MAKE_INPUT(tAttr)
+
+	curveNode.outPoints = tAttr.create("outPoints", "op", OpenMaya.MFnArrayAttrsData.kDynArrayAttrs)
+	MAKE_OUTPUT(tAttr)
+
+	try:
+		curveNode.addAttribute(curveNode.density)
+		curveNode.addAttribute(curveNode.inCurve)
+		curveNode.addAttribute(curveNode.outPoints)
+
+		curveNode.attributeAffects(curveNode.density, curveNode.outPoints)
+		curveNode.attributeAffects(curveNode.inCurve, curveNode.outPoints)
+
+		print "curveNode Initialization!\n"
+
+	except:
+		sys.stderr.write( "Failed to create attributes of curveNode node\n" )
+
+def curveNodeCreator():
+	return OpenMayaMPx.asMPxPtr(curveNode())
+
 def createUI():
-    OpenMaya.MGlobal.executeCommand("createUI")
+	OpenMaya.MGlobal.executeCommand("createUI")
 
 def deleteUI():
-    OpenMaya.MGlobal.executeCommand("deleteUI")
+	OpenMaya.MGlobal.executeCommand("deleteUI")
 
 # Initialize the plugin
 def initializePlugin(mobject):
@@ -125,7 +209,12 @@ def initializePlugin(mobject):
 		sys.stderr.write("Failed to register command: %s\n" % pluginCmdName)
 		raise
 
-	OpenMaya.MGlobal.executeCommand("source \"" + mplugin.loadPath() + "/CreateCurvesUI.mel\"");
+	try:
+		mplugin.registerNode( "curveNode", curveNodeId, curveNodeCreator, curveNodeInitializer )
+	except:
+		sys.stderr.write( "Failed to register curveNode" )
+
+	OpenMaya.MGlobal.executeCommand("source \"" + mplugin.loadPath() + "/CanvasUI.mel\"");
 
 	try:
 		mplugin.registerUI(createUI, deleteUI)
